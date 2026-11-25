@@ -14,28 +14,37 @@ public class PlayerController : MonoBehaviour
     public InputAction moveA;
     public InputAction jumpA;
     public InputAction sprintA;
+    public InputAction pauseA;
     private Rigidbody rb;
-    public float jumping = 5.0f;
+    public float jumping;
     public bool jumpCheck;
     public float speed;
     public float tempSpeed;
     public Vector2 moveValue;
-
+    public bool pauseState;
+    public bool hangChoice = false;
+    public bool inWall = false;
     enum State
     {
         STANDING,
         MOVING, 
-        JUMPING
+        JUMPING,
+        HANGING
     };
     State currentState;
+
+
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+
+        pauseState = false;
         rb = GetComponent<Rigidbody>();
         moveA = InputSystem.actions.FindAction("Move");
         jumpA = InputSystem.actions.FindAction("Jump");
         sprintA = InputSystem.actions.FindAction("Sprint");
+        pauseA = InputSystem.actions.FindAction("Pause");
         currentState = State.STANDING;
         tempSpeed = speed;
 
@@ -48,6 +57,10 @@ public class PlayerController : MonoBehaviour
             Debug.Log("floor");
             jumpCheck = true;
         }
+        if (other.gameObject.CompareTag("Wall"))
+        {
+
+        }
     }
    
 
@@ -58,11 +71,14 @@ public class PlayerController : MonoBehaviour
             Debug.Log("no floor");
             jumpCheck = false;
         }
+        if (other.gameObject.CompareTag("Wall"))
+        {
+            inWall = false;
+        }
     }
     void Standing()
     {
         moveValue = moveA.ReadValue<Vector2>();
-        Debug.Log(moveValue);
         if (moveValue != new Vector2 (0f,0f))
         {
             currentState = State.MOVING;
@@ -73,6 +89,10 @@ public class PlayerController : MonoBehaviour
             Debug.Log("Ima jump");
             currentState = State.JUMPING;
         }
+        if (pauseA.WasPressedThisFrame())
+        {
+            GameObject.Find("Sphere (1)").GetComponent<SphereTest>().TriggerPause();
+        } 
     }
     void Moving()
     {
@@ -83,8 +103,11 @@ public class PlayerController : MonoBehaviour
             speed += 3.0f;
             Debug.Log("SPRINT");
         }
-        Vector2 tempVect = moveValue * (Time.deltaTime * speed);
-        transform.Translate(tempVect.x, 0, tempVect.y);
+        Vector2 tempVect = moveValue * (Time.unscaledDeltaTime * speed);
+        if (!inWall)
+        {
+            rb.AddForce(new Vector3(tempVect.x * 1.5f, 0.0f, tempVect.y * 1.5f), ForceMode.Impulse);
+        }
         speed = tempSpeed;
         moveValue = moveA.ReadValue<Vector2>();
         if (jumpA.WasPressedThisFrame() && jumpCheck == true)
@@ -95,17 +118,48 @@ public class PlayerController : MonoBehaviour
         {
             currentState = State.STANDING;
         }
+        if (pauseA.WasPressedThisFrame())
+        {
+            if (pauseState == false)
+            {
+                GameObject.Find("Sphere (1)").GetComponent<SphereTest>().TriggerPause();
+            }
+        }
     }
     void Jumping()
     {
         Debug.Log("Weeeee!");
         rb.AddForce(Vector3.up * jumping, ForceMode.Impulse);
+        if (pauseA.WasPressedThisFrame())
+        {
+            GameObject.Find("Sphere (1)").GetComponent<SphereTest>().TriggerPause();
+        }
+        jumpCheck = false;
         currentState = State.STANDING;
-        
+
+    }
+
+    void Hanging()
+    {
+
+        if (jumpA.WasPressedThisFrame())
+        {
+            hangChoice = false;
+            jumpCheck = true;
+            currentState = State.JUMPING;
+
+        }
+
+
     }
     // Update is called once per frame
     void Update()
     {
+
+        if (hangChoice == true)
+        {
+            currentState = State.HANGING;
+        }
         switch (currentState)
         {
             case State.STANDING:
@@ -117,6 +171,9 @@ public class PlayerController : MonoBehaviour
 
             case State.MOVING:
                 Moving();
+                break;
+            case State.HANGING:
+                Hanging();
                 break;
                 
         }
